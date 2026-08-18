@@ -1,5 +1,10 @@
 import requests
 import time
+import threading
+from flask import Flask
+import os
+
+app = Flask(__name__)
 
 BOT_TOKEN = "1780245942:kRBIlWiNhtrfw2KMaVTbnoUqb7TDK4olePU"
 GEMINI_TOKEN = "AQ.Ab8RN6KN5ah1SBfk7-tkjkZ0fZu2YzVrFPbdDS0z4LW-ZuYzlw"
@@ -26,47 +31,47 @@ def send_message(chat_id, text):
     except Exception as e:
         print(f"Ошибка отправки: {e}")
 
-def get_updates():
+def run_bot():
     global last_update_id
-    url = f"https://api.un1quedev.lol/bot{BOT_TOKEN}/getUpdates?offset={last_update_id+1}&timeout=30"
-    try:
-        response = requests.get(url, timeout=35)
-        return response.json()
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        return {}
+    print("🚀 Бот запущен! Ожидаю сообщения...")
+    while True:
+        try:
+            url = f"https://api.un1quedev.lol/bot{BOT_TOKEN}/getUpdates?offset={last_update_id+1}&timeout=30"
+            response = requests.get(url, timeout=35)
+            updates = response.json()
+            if 'result' in updates:
+                for update in updates['result']:
+                    update_id = update.get('update_id', 0)
+                    if update_id > last_update_id:
+                        last_update_id = update_id
+                        if 'message' in update:
+                            chat_id = update['message']['chat']['id']
+                            text = update['message'].get('text', '')
+                            if chat_id not in histories:
+                                histories[chat_id] = []
+                            print(f"Сообщение: {text}")
+                            if text == '/start':
+                                send_message(chat_id, "Привет! Я ИИ-помощник. Пиши вопросы.")
+                            elif text == 'Сбросить историю':
+                                histories[chat_id] = []
+                                send_message(chat_id, "История очищена!")
+                            else:
+                                histories[chat_id].append(f"Ты: {text}")
+                                answer = ask_gemini(text, histories[chat_id])
+                                histories[chat_id].append(f"Бот: {answer}")
+                                send_message(chat_id, answer)
+            time.sleep(2)
+        except Exception as e:
+            print(f"Ошибка: {e}")
+            time.sleep(5)
 
-print("🚀 Бот запущен!")
+@app.route('/')
+def hello():
+    return "Бот работает!"
 
-while True:
-    try:
-        updates = get_updates()
-        if updates and 'result' in updates:
-            for update in updates['result']:
-                update_id = update.get('update_id', 0)
-                if update_id > last_update_id:
-                    last_update_id = update_id
-                    
-                    if 'message' in update:
-                        chat_id = update['message']['chat']['id']
-                        text = update['message'].get('text', '')
-                        
-                        if chat_id not in histories:
-                            histories[chat_id] = []
-                        
-                        print(f"Сообщение: {text}")
-                        
-                        if text == '/start':
-                            send_message(chat_id, "Привет! Я ИИ-помощник. Пиши вопросы.")
-                        elif text == 'Сбросить историю':
-                            histories[chat_id] = []
-                            send_message(chat_id, "История очищена!")
-                        else:
-                            histories[chat_id].append(f"Ты: {text}")
-                            answer = ask_gemini(text, histories[chat_id])
-                            histories[chat_id].append(f"Бот: {answer}")
-                            send_message(chat_id, answer)
-        time.sleep(2)
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        time.sleep(5)
+if __name__ == '__main__':
+    thread = threading.Thread(target=run_bot)
+    thread.daemon = True
+    thread.start()
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
