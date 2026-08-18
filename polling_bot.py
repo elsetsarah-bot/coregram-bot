@@ -30,6 +30,13 @@ def send_message(chat_id, text):
     except Exception as e:
         print(f"Ошибка отправки: {e}")
 
+def send_chat_action(chat_id, action="typing"):
+    url = f"https://api.un1quedev.lol/bot{BOT_TOKEN}/sendChatAction"
+    try:
+        requests.post(url, json={"chat_id": chat_id, "action": action})
+    except Exception as e:
+        print(f"Ошибка отправки действия: {e}")
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
@@ -51,7 +58,10 @@ def webhook():
                 send_message(chat_id, f"⏳ Подожди {int(5 - (t - user_last_request[chat_id])) + 1} сек.")
                 return "OK", 200
             user_last_request[chat_id] = t
-            send_message(chat_id, "🤔 Генерирую ответ...")
+            
+            # Отправляем действие "печатает..."
+            send_chat_action(chat_id, "typing")
+            
             histories[chat_id].append(f"Ты: {text}")
             answer = ask_gemini(text, histories[chat_id])
             histories[chat_id].append(f"Бот: {answer}")
