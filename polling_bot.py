@@ -1,7 +1,7 @@
 import requests
 import time
 import threading
-from flask import Flask
+from flask import Flask, request
 import os
 
 app = Flask(__name__)
@@ -11,8 +11,6 @@ GEMINI_TOKEN = "AQ.Ab8RN6KN5ah1SBfk7-tkjkZ0fZu2YzVrFPbdDS0z4LW-ZuYzlw"
 
 histories = {}
 last_update_id = 0
-
-# Словарь для хранения времени последнего запроса каждого пользователя
 user_last_request = {}
 
 def ask_gemini(prompt, history):
@@ -52,44 +50,43 @@ def run_bot():
                             text = update['message'].get('text', '')
                             if chat_id not in histories:
                                 histories[chat_id] = []
-                            print(f"Сообщение: {text}")
-                            
+                            print(f"📩 Сообщение от {chat_id}: {text}")
+
                             if text == '/start':
-                                send_message(chat_id, "Привет! Я ИИ-помощник. Пиши вопросы.")
-                            elif text == 'Сбросить историю':
+                                send_message(chat_id, "👋 Привет! Я ИИ-помощник. Просто пиши мне вопросы.")
+                            elif text == 'Сбросить историю' or text == '/reset':
                                 histories[chat_id] = []
-                                send_message(chat_id, "История очищена!")
+                                send_message(chat_id, "🔄 История очищена!")
+                            elif text == 'Поддержать разработку':
+                                send_message(chat_id, "💖 Поддержать: @target")
                             else:
-                                # Проверяем ограничение
                                 current_time = time.time()
                                 last_time = user_last_request.get(chat_id, 0)
                                 time_diff = current_time - last_time
-                                
                                 if time_diff < 5:
                                     wait_time = int(5 - time_diff) + 1
                                     send_message(chat_id, f"⏳ Подождите {wait_time} секунд перед следующим запросом.")
                                     continue
-                                
                                 user_last_request[chat_id] = current_time
-                                
-                                # Отправляем статус "Генерирую..."
                                 send_message(chat_id, "🤔 Генерирую ответ...")
-                                
                                 histories[chat_id].append(f"Ты: {text}")
                                 answer = ask_gemini(text, histories[chat_id])
                                 histories[chat_id].append(f"Бот: {answer}")
-                                
-                                # Редактируем сообщение с ответом вместо "Генерирую..."
-                                # Просто отправляем новое сообщение (API не поддерживает редактирование через polling)
                                 send_message(chat_id, answer)
             time.sleep(2)
         except Exception as e:
             print(f"Ошибка: {e}")
             time.sleep(5)
 
-@app.route('/')
-def hello():
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        return "OK", 200
     return "Бот работает!"
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    return "OK", 200
 
 if __name__ == '__main__':
     thread = threading.Thread(target=run_bot)
