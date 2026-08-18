@@ -12,6 +12,9 @@ GEMINI_TOKEN = "AQ.Ab8RN6KN5ah1SBfk7-tkjkZ0fZu2YzVrFPbdDS0z4LW-ZuYzlw"
 histories = {}
 last_update_id = 0
 
+# Словарь для хранения времени последнего запроса каждого пользователя
+user_last_request = {}
+
 def ask_gemini(prompt, history):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={GEMINI_TOKEN}"
     context = "\n".join(history[-10:]) if history else ""
@@ -50,15 +53,34 @@ def run_bot():
                             if chat_id not in histories:
                                 histories[chat_id] = []
                             print(f"Сообщение: {text}")
+                            
                             if text == '/start':
                                 send_message(chat_id, "Привет! Я ИИ-помощник. Пиши вопросы.")
                             elif text == 'Сбросить историю':
                                 histories[chat_id] = []
                                 send_message(chat_id, "История очищена!")
                             else:
+                                # Проверяем ограничение
+                                current_time = time.time()
+                                last_time = user_last_request.get(chat_id, 0)
+                                time_diff = current_time - last_time
+                                
+                                if time_diff < 5:
+                                    wait_time = int(5 - time_diff) + 1
+                                    send_message(chat_id, f"⏳ Подождите {wait_time} секунд перед следующим запросом.")
+                                    continue
+                                
+                                user_last_request[chat_id] = current_time
+                                
+                                # Отправляем статус "Генерирую..."
+                                send_message(chat_id, "🤔 Генерирую ответ...")
+                                
                                 histories[chat_id].append(f"Ты: {text}")
                                 answer = ask_gemini(text, histories[chat_id])
                                 histories[chat_id].append(f"Бот: {answer}")
+                                
+                                # Редактируем сообщение с ответом вместо "Генерирую..."
+                                # Просто отправляем новое сообщение (API не поддерживает редактирование через polling)
                                 send_message(chat_id, answer)
             time.sleep(2)
         except Exception as e:
