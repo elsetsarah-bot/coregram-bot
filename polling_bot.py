@@ -30,37 +30,27 @@ def send_message(chat_id, text):
     except Exception as e:
         print(f"Ошибка отправки: {e}")
 
-@app.route('/', methods=['GET'])
-def index():
-    return "Бот работает!", 200
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.get_json()
+    print(f"Получен запрос: {data}")
     if 'message' in data:
         chat_id = data['message']['chat']['id']
         text = data['message'].get('text', '')
+        print(f"Сообщение от {chat_id}: {text}")
         if chat_id not in histories:
             histories[chat_id] = []
-        
-        print(f"📩 Сообщение от {chat_id}: {text}")
-
         if text == '/start':
-            send_message(chat_id, "👋 Привет! Я ИИ-помощник. Пиши вопросы.")
-        elif text == 'Сбросить историю' or text == '/reset':
+            send_message(chat_id, "Привет! Я ИИ-помощник. Пиши вопросы.")
+        elif text == 'Сбросить историю':
             histories[chat_id] = []
-            send_message(chat_id, "🔄 История очищена!")
-        elif text == 'Поддержать разработку':
-            send_message(chat_id, "💖 Поддержать: @target")
+            send_message(chat_id, "История очищена!")
         else:
-            current_time = time.time()
-            last_time = user_last_request.get(chat_id, 0)
-            time_diff = current_time - last_time
-            if time_diff < 5:
-                wait_time = int(5 - time_diff) + 1
-                send_message(chat_id, f"⏳ Подождите {wait_time} сек.")
+            t = time.time()
+            if chat_id in user_last_request and t - user_last_request[chat_id] < 5:
+                send_message(chat_id, f"⏳ Подожди {int(5 - (t - user_last_request[chat_id])) + 1} сек.")
                 return "OK", 200
-            user_last_request[chat_id] = current_time
+            user_last_request[chat_id] = t
             send_message(chat_id, "🤔 Генерирую ответ...")
             histories[chat_id].append(f"Ты: {text}")
             answer = ask_gemini(text, histories[chat_id])
